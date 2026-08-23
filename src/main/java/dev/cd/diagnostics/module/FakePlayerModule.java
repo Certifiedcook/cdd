@@ -24,17 +24,19 @@ public final class FakePlayerModule {
         return fakePlayer != null && !fakePlayer.isRemoved();
     }
 
+    public static RemotePlayer getFakePlayer() {
+        return isSpawned() ? fakePlayer : null;
+    }
+
     public static boolean spawn(Minecraft client) {
         if (client.player == null || client.level == null) return false;
-        if (!client.hasSingleplayerServer()) {
-            client.player.sendSystemMessage(Component.literal("[CD Diagnostics] Fake player is singleplayer-only."));
-            return false;
-        }
 
         remove();
         ClientLevel level = client.level;
         RemotePlayer dummy = new RemotePlayer(level, new GameProfile(UUID_VALUE, NAME));
 
+        // Keep the diagnostic entity in a negative-ID range and avoid any
+        // local collision with another client entity. No packet is sent.
         while (level.getEntity(nextEntityId) != null) nextEntityId--;
         dummy.setId(nextEntityId--);
 
@@ -49,6 +51,8 @@ public final class FakePlayerModule {
         dummy.setCustomName(Component.literal("CD Test Player"));
         dummy.setCustomNameVisible(true);
 
+        // ClientLevel-only insertion. This does not create a server player or
+        // transmit an entity-spawn packet to a remote server.
         level.addEntity(dummy);
         fakePlayer = dummy;
         fakePlayerLevel = level;
@@ -69,7 +73,10 @@ public final class FakePlayerModule {
 
     public static void tick(Minecraft client) {
         if (fakePlayer == null) return;
-        if (client.level == null || client.level != fakePlayerLevel || !client.hasSingleplayerServer()) {
+
+        // Only remove it when the client leaves/replaces the world. Being
+        // connected to a remote multiplayer server is intentionally allowed.
+        if (client.level == null || client.level != fakePlayerLevel) {
             remove();
         }
     }
