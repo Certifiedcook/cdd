@@ -3,12 +3,14 @@ package dev.cd.diagnostics.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.cd.diagnostics.DiagnosticsSettings;
+import dev.cd.diagnostics.module.FakePlayerModule;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
@@ -52,13 +54,20 @@ public final class DiagnosticsOverlayRenderer {
 
         if (DiagnosticsSettings.playerEsp) {
             Player local = Minecraft.getInstance().player;
+            RemotePlayer diagnosticFake = FakePlayerModule.getFakePlayer();
+            boolean fakeSeen = false;
+
             for (Player player : level.players()) {
                 if (player == local) continue;
-                AABB box = player.getBoundingBox().inflate(0.025);
-                Vec3 center = center(box);
-                if (center.distanceToSqr(camera) <= MAX_PLAYER_DIST_SQ) {
-                    players.add(new Target(box, center, PLAYER_COLOR));
-                }
+                if (player == diagnosticFake) fakeSeen = true;
+                addPlayerTarget(players, player, camera);
+            }
+
+            // Some client entity paths do not include locally-inserted
+            // RemotePlayer instances in ClientLevel.players(). Explicitly add
+            // the CDD dummy once so it always exercises the real overlay path.
+            if (diagnosticFake != null && !fakeSeen && diagnosticFake != local && !diagnosticFake.isRemoved()) {
+                addPlayerTarget(players, diagnosticFake, camera);
             }
         }
 
@@ -84,6 +93,14 @@ public final class DiagnosticsOverlayRenderer {
         frame = new FrameState(List.copyOf(players), List.copyOf(storage), camera);
     }
 
+    private static void addPlayerTarget(List<Target> targets, Player player, Vec3 camera) {
+        AABB box = player.getBoundingBox().inflate(0.025);
+        Vec3 center = center(box);
+        if (center.distanceToSqr(camera) <= MAX_PLAYER_DIST_SQ) {
+            targets.add(new Target(box, center, PLAYER_COLOR));
+        }
+    }
+
     private static boolean isStorage(BlockEntity blockEntity) {
         return blockEntity instanceof ChestBlockEntity
                 || blockEntity instanceof BarrelBlockEntity
@@ -95,7 +112,11 @@ public final class DiagnosticsOverlayRenderer {
         FrameState snapshot = frame;
         if (snapshot.players().isEmpty() && snapshot.storage().isEmpty()) return;
 
-        RenderType renderType = DiagnosticsSettings.depthOverride
+        // Player diagnostics are deliberately x-ray style: the no-depth
+        // pipeline is always used so player boxes remain visible through
+        // terrain. The depth override toggle continues to control storage.
+        RenderType playerRenderType = DiagnosticRenderTypes.NO_DEPTH_LINES;
+        RenderType storageRenderType = DiagnosticsSettings.depthOverride
                 ? DiagnosticRenderTypes.NO_DEPTH_LINES
                 : RenderTypes.lines();
 
@@ -104,19 +125,43 @@ public final class DiagnosticsOverlayRenderer {
         poseStack.translate(-snapshot.camera().x, -snapshot.camera().y, -snapshot.camera().z);
 
         for (Target target : snapshot.players()) {
-            context.submitNodeCollector().submitShapeOutline(poseStack, Shapes.create(target.box()), renderType, target.color(), 2.0F, false);
+            context.submitNodeCollector().submitShapeOutline(
+                    poseStack,
+                    Shapes.create(target.box()),
+                    playerRenderType,
+                    target.color(),
+                    2.0F,
+                    false
+            );
         }
+
         for (Target target : snapshot.storage()) {
-            context.submitNodeCollector().submitShapeOutline(poseStack, Shapes.create(target.box()), renderType, target.color(), 2.0F, false);
+            context.submitNodeCollector().submitShapeOutline(
+                    poseStack,
+                    Shapes.create(target.box()),
+                    storageRenderType,
+                    target.color(),
+                    2.0F,
+                    false
+            );
         }
 
         if (DiagnosticsSettings.tracers) {
-            List<Target> all = new ArrayList<>(snapshot.players().size() + snapshot.storage().size());
-            all.addAll(snapshot.players());
-            all.addAll(snapshot.storage());
-            context.submitNodeCollector().submitCustomGeometry(poseStack, renderType, (pose, vertices) -> {
-                for (Target target : all) emitLine(pose, vertices, snapshot.camera(), target.center(), target.color());
-            });
+            if (!snapshot.players().isEmpty()) {
+                context.submitNodeCollector().submitCustomGeometry(poseStack, playerRenderType, (pose, vertices) -> {
+                    for (Target target : snapshot.players()) {
+                        emitLine(pose, vertices, snapshot.camera(), target.center(), target.color());
+                    }
+                });
+            }
+
+            if (!snapshot.storage().isEmpty()) {
+                context.submitNodeCollector().submitCustomGeometry(poseStack, storageRenderType, (pose, vertices) -> {
+                    for (Target target : snapshot.storage()) {
+                        emitLine(pose, vertices, snapshot.camera(), target.center(), target.color());
+                    }
+                });
+            }
         }
 
         poseStack.popPose();
