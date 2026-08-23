@@ -1,5 +1,7 @@
 {
   "key.category.cd_diagnostics.diagnostics": "CD Diagnostics",
   "key.cd_diagnostics.gui": "Open CD Diagnostics",
-  "key.cd_diagnostics.freecam": "Toggle Freecam"
+  "key.cd_diagnostics.freecam": "Toggle Freecam",
+  "key.cd_diagnostics.panic": "Panic / Clear Panic",
+  "key.cd_diagnostics.temp_overlay": "Hold Temporary Overlays"
 }
