@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.cd.diagnostics.DiagnosticsSettings;
 import dev.cd.diagnostics.module.FakePlayerModule;
+import dev.cd.diagnostics.module.OreScanner;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -36,6 +37,7 @@ public final class DiagnosticsOverlayRenderer {
     private static final double MAX_STORAGE_DIST_SQ = 96.0 * 96.0;
     private static final int STORAGE_CHUNK_RADIUS = 5;
     private static final double TRACER_CAMERA_OFFSET = 0.25;
+
     private static volatile FrameState frame = FrameState.EMPTY;
 
     private DiagnosticsOverlayRenderer() {
@@ -64,8 +66,9 @@ public final class DiagnosticsOverlayRenderer {
 
         List<Target> players = new ArrayList<>();
         List<Target> storage = new ArrayList<>();
+        List<Target> ores = new ArrayList<>();
 
-        if (DiagnosticsSettings.playerEsp) {
+        if (DiagnosticsSettings.playerEsp || DiagnosticsSettings.playerTracers) {
             Player local = Minecraft.getInstance().player;
             RemotePlayer diagnosticFake = FakePlayerModule.getFakePlayer();
             boolean fakeSeen = false;
@@ -86,24 +89,47 @@ public final class DiagnosticsOverlayRenderer {
             int cameraChunkZ = ((int) Math.floor(camera.z)) >> 4;
             for (int dx = -STORAGE_CHUNK_RADIUS; dx <= STORAGE_CHUNK_RADIUS; dx++) {
                 for (int dz = -STORAGE_CHUNK_RADIUS; dz <= STORAGE_CHUNK_RADIUS; dz++) {
-                    LevelChunk chunk = level.getChunkSource().getChunk(cameraChunkX + dx, cameraChunkZ + dz, ChunkStatus.FULL, false);
+                    LevelChunk chunk = level.getChunkSource().getChunk(
+                            cameraChunkX + dx,
+                            cameraChunkZ + dz,
+                            ChunkStatus.FULL,
+                            false
+                    );
                     if (chunk == null) continue;
+
                     for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                        if (!isStorage(blockEntity)) continue;
+                        if (!shouldShowStorage(blockEntity)) continue;
+
                         BlockPos pos = blockEntity.getBlockPos();
                         Vec3 center = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                         if (center.distanceToSqr(camera) > MAX_STORAGE_DIST_SQ) continue;
-                        AABB box = new AABB(
-                                pos.getX(), pos.getY(), pos.getZ(),
-                                pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0
-                        ).inflate(0.025);
+
+                        AABB box = unitBlockBox(pos);
                         storage.add(new Target(box, center, STORAGE_COLOR));
                     }
                 }
             }
         }
 
-        frame = new FrameState(List.copyOf(players), List.copyOf(storage), camera, tracerOrigin);
+        if (DiagnosticsSettings.oreEsp) {
+            for (OreScanner.OreHit hit : OreScanner.snapshot()) {
+                if (!OreScanner.enabled(hit.type())) continue;
+                BlockPos pos = hit.pos();
+                ores.add(new Target(
+                        unitBlockBox(pos),
+                        new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5),
+                        hit.type().color()
+                ));
+            }
+        }
+
+        frame = new FrameState(
+                List.copyOf(players),
+                List.copyOf(storage),
+                List.copyOf(ores),
+                camera,
+                tracerOrigin
+        );
     }
 
     private static void addPlayerTarget(List<Target> targets, Player player, Vec3 camera) {
@@ -114,19 +140,30 @@ public final class DiagnosticsOverlayRenderer {
         }
     }
 
-    private static boolean isStorage(BlockEntity blockEntity) {
-        return blockEntity instanceof ChestBlockEntity
-                || blockEntity instanceof BarrelBlockEntity
-                || blockEntity instanceof ShulkerBoxBlockEntity
-                || blockEntity instanceof EnderChestBlockEntity;
+    private static boolean shouldShowStorage(BlockEntity blockEntity) {
+        if (blockEntity instanceof ChestBlockEntity) return DiagnosticsSettings.showChests;
+        if (blockEntity instanceof BarrelBlockEntity) return DiagnosticsSettings.showBarrels;
+        if (blockEntity instanceof ShulkerBoxBlockEntity) return DiagnosticsSettings.showShulkers;
+        if (blockEntity instanceof EnderChestBlockEntity) return DiagnosticsSettings.showEnderChests;
+        return false;
+    }
+
+    private static AABB unitBlockBox(BlockPos pos) {
+        return new AABB(
+                pos.getX(), pos.getY(), pos.getZ(),
+                pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0
+        ).inflate(0.025);
     }
 
     private static void submit(LevelRenderContext context) {
         FrameState snapshot = frame;
-        if (snapshot.players().isEmpty() && snapshot.storage().isEmpty()) return;
+        if (snapshot.players().isEmpty() && snapshot.storage().isEmpty() && snapshot.ores().isEmpty()) return;
 
         RenderType playerRenderType = DiagnosticRenderTypes.NO_DEPTH_LINES;
-        RenderType storageRenderType = DiagnosticsSettings.depthOverride
+        RenderType storageRenderType = DiagnosticsSettings.storageDepthOverride
+                ? DiagnosticRenderTypes.NO_DEPTH_LINES
+                : RenderTypes.lines();
+        RenderType oreRenderType = DiagnosticsSettings.oreDepthOverride
                 ? DiagnosticRenderTypes.NO_DEPTH_LINES
                 : RenderTypes.lines();
 
@@ -134,47 +171,56 @@ public final class DiagnosticsOverlayRenderer {
         poseStack.pushPose();
         poseStack.translate(-snapshot.camera().x, -snapshot.camera().y, -snapshot.camera().z);
 
-        for (Target target : snapshot.players()) {
-            context.submitNodeCollector().submitShapeOutline(
+        if (DiagnosticsSettings.playerEsp) {
+            for (Target target : snapshot.players()) {
+                submitBox(context, poseStack, target, playerRenderType, 2.0F);
+            }
+        }
+
+        if (DiagnosticsSettings.storageEsp) {
+            for (Target target : snapshot.storage()) {
+                submitBox(context, poseStack, target, storageRenderType, 2.0F);
+            }
+        }
+
+        if (DiagnosticsSettings.oreEsp) {
+            for (Target target : snapshot.ores()) {
+                submitBox(context, poseStack, target, oreRenderType, 2.25F);
+            }
+        }
+
+        // Tracers intentionally target players only. Storage and ore tracers
+        // are not submitted at all.
+        if (DiagnosticsSettings.playerTracers && !snapshot.players().isEmpty()) {
+            context.submitNodeCollector().submitCustomGeometry(
                     poseStack,
-                    Shapes.create(target.box()),
                     playerRenderType,
-                    target.color(),
-                    2.0F,
-                    false
-            );
-        }
-
-        for (Target target : snapshot.storage()) {
-            context.submitNodeCollector().submitShapeOutline(
-                    poseStack,
-                    Shapes.create(target.box()),
-                    storageRenderType,
-                    target.color(),
-                    2.0F,
-                    false
-            );
-        }
-
-        if (DiagnosticsSettings.tracers) {
-            if (!snapshot.players().isEmpty()) {
-                context.submitNodeCollector().submitCustomGeometry(poseStack, playerRenderType, (pose, vertices) -> {
-                    for (Target target : snapshot.players()) {
-                        emitLine(pose, vertices, snapshot.tracerOrigin(), target.center(), target.color());
+                    (pose, vertices) -> {
+                        for (Target target : snapshot.players()) {
+                            emitLine(pose, vertices, snapshot.tracerOrigin(), target.center(), target.color());
+                        }
                     }
-                });
-            }
-
-            if (!snapshot.storage().isEmpty()) {
-                context.submitNodeCollector().submitCustomGeometry(poseStack, storageRenderType, (pose, vertices) -> {
-                    for (Target target : snapshot.storage()) {
-                        emitLine(pose, vertices, snapshot.tracerOrigin(), target.center(), target.color());
-                    }
-                });
-            }
+            );
         }
 
         poseStack.popPose();
+    }
+
+    private static void submitBox(
+            LevelRenderContext context,
+            PoseStack poseStack,
+            Target target,
+            RenderType renderType,
+            float width
+    ) {
+        context.submitNodeCollector().submitShapeOutline(
+                poseStack,
+                Shapes.create(target.box()),
+                renderType,
+                target.color(),
+                width,
+                false
+        );
     }
 
     private static void emitLine(PoseStack.Pose pose, VertexConsumer vertices, Vec3 from, Vec3 to, int color) {
@@ -209,7 +255,15 @@ public final class DiagnosticsOverlayRenderer {
     private record Target(AABB box, Vec3 center, int color) {
     }
 
-    private record FrameState(List<Target> players, List<Target> storage, Vec3 camera, Vec3 tracerOrigin) {
-        private static final FrameState EMPTY = new FrameState(List.of(), List.of(), Vec3.ZERO, Vec3.ZERO);
+    private record FrameState(
+            List<Target> players,
+            List<Target> storage,
+            List<Target> ores,
+            Vec3 camera,
+            Vec3 tracerOrigin
+    ) {
+        private static final FrameState EMPTY = new FrameState(
+                List.of(), List.of(), List.of(), Vec3.ZERO, Vec3.ZERO
+        );
     }
 }
