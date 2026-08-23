@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.Locale;
 
@@ -20,6 +21,14 @@ public final class CDDKeyMappings {
 
     public static final KeyMapping FREECAM = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.cd_diagnostics.freecam", InputConstants.Type.KEYSYM, InputConstants.KEY_F6, CATEGORY
+    ));
+
+    public static final KeyMapping PANIC = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.cd_diagnostics.panic", InputConstants.Type.KEYSYM, InputConstants.KEY_F7, CATEGORY
+    ));
+
+    public static final KeyMapping TEMP_OVERLAY = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.cd_diagnostics.temp_overlay", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_ALT, CATEGORY
     ));
 
     private CDDKeyMappings() {
