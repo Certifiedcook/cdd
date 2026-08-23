@@ -19,6 +19,7 @@ public final class FreecamSettings {
     public static void setSpeed(double value) { speed = clamp(value, 1.0, 80.0); }
     public static void setBoostMultiplier(double value) { boostMultiplier = clamp(value, 1.0, 10.0); }
     public static void toggleSmoothing() { smoothing = !smoothing; }
+    public static void setSmoothing(boolean value) { smoothing = value; }
     public static void setSmoothingStrength(double value) { smoothingStrength = clamp(value, 1.0, 30.0); }
     public static void setMouseSensitivity(double value) { mouseSensitivity = clamp(value, 0.1, 4.0); }
 
