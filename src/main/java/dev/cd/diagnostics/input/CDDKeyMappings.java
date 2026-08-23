@@ -2,7 +2,7 @@ package dev.cd.diagnostics.input;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.cd.diagnostics.CDDiagnosticsClient;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
