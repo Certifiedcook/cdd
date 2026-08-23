@@ -1,5 +1,6 @@
 package dev.cd.diagnostics.command;
 
+import dev.cd.diagnostics.config.CDDConfigManager;
 import dev.cd.diagnostics.gui.DiagnosticsScreen;
 import dev.cd.diagnostics.input.CDDKeyMappings;
 import dev.cd.diagnostics.module.FakePlayerModule;
@@ -56,6 +57,7 @@ public final class CDDChatCommands {
             if (args.length == 4 && args[2].equalsIgnoreCase("speed")) {
                 try {
                     FreecamSettings.setSpeed(Double.parseDouble(args[3]));
+                    CDDConfigManager.save();
                     message(client, "Freecam speed: " + FreecamSettings.speed() + " blocks/sec");
                 } catch (NumberFormatException exception) {
                     message(client, "Speed must be a number.");
