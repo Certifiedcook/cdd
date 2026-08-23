@@ -5,6 +5,8 @@ import dev.cd.diagnostics.config.CDDConfigManager;
 import dev.cd.diagnostics.module.FakePlayerModule;
 import dev.cd.diagnostics.module.FreecamModule;
 import dev.cd.diagnostics.module.FreecamSettings;
+import dev.cd.diagnostics.notification.CDDNotifications;
+import dev.cd.diagnostics.session.CDDSession;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -25,8 +27,8 @@ public final class DiagnosticsScreen extends Screen {
         int left = this.width / 2 - 154;
         int right = this.width / 2 + 4;
         int width = 150;
-        int tabTop = this.height / 2 - 116;
-        int top = this.height / 2 - 78;
+        int tabTop = this.height / 2 - 132;
+        int top = this.height / 2 - 94;
 
         addRenderableWidget(Button.builder(
                 Component.literal(section == Section.OVERLAYS ? "> Overlays <" : "Overlays"),
@@ -83,22 +85,59 @@ public final class DiagnosticsScreen extends Screen {
 
     private void buildMisc(int left, int right, int top, int width) {
         addRenderableWidget(Button.builder(Component.literal(fakeLabel()), button -> {
+            if (CDDSession.isPanicActive()) {
+                status = "Clear Panic before spawning test entities";
+                CDDNotifications.show("Panic is active", "Fake Player is blocked until Panic is cleared");
+                return;
+            }
             FakePlayerModule.toggle(this.minecraft);
+            CDDNotifications.show("Fake Player", FakePlayerModule.isSpawned() ? "Spawned locally" : "Removed");
             button.setMessage(Component.literal(fakeLabel()));
         }).bounds(left, top, width, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal(freecamLabel()), button -> {
+            if (CDDSession.isPanicActive()) {
+                status = "Clear Panic before enabling freecam";
+                CDDNotifications.show("Panic is active", "Freecam is blocked until Panic is cleared");
+                return;
+            }
             FreecamModule.toggle(this.minecraft);
+            CDDNotifications.show("Freecam", FreecamModule.isActive() ? "Enabled" : "Disabled");
             button.setMessage(Component.literal(freecamLabel()));
         }).bounds(left, top + 24, width, 20).build());
 
-        addPair(left, top + 48, width,
+        addRenderableWidget(Button.builder(Component.literal(panicLabel()), button -> {
+            CDDSession.togglePanic(this.minecraft);
+            status = CDDSession.isPanicActive() ? "Panic enabled" : "Panic cleared";
+            rebuildWidgets();
+        }).bounds(left, top + 48, width, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal(notificationsLabel()), button -> {
+            boolean next = !DiagnosticsSettings.notifications;
+            DiagnosticsSettings.notifications = next;
+            CDDConfigManager.save();
+            CDDNotifications.showForced("CDD Notifications", next ? "Enabled" : "Disabled");
+            button.setMessage(Component.literal(notificationsLabel()));
+        }).bounds(left, top + 72, width, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal(tempModeLabel()), button -> {
+            DiagnosticsSettings.temporaryOverlayMode = !DiagnosticsSettings.temporaryOverlayMode;
+            CDDConfigManager.save();
+            status = DiagnosticsSettings.temporaryOverlayMode
+                    ? "Hold the Temp Overlay key to show overlays"
+                    : "Overlays use their normal toggles";
+            CDDNotifications.show("Temporary Overlay Mode",
+                    DiagnosticsSettings.temporaryOverlayMode ? "Hold key mode enabled" : "Disabled");
+            button.setMessage(Component.literal(tempModeLabel()));
+        }).bounds(left, top + 96, width, 20).build());
+
+        addPair(left, top + 120, width,
                 "Speed - (" + oneDecimal(FreecamSettings.speed()) + ")",
                 () -> changeFreecamSpeed(-2.0),
                 "Speed + (" + oneDecimal(FreecamSettings.speed()) + ")",
                 () -> changeFreecamSpeed(2.0));
 
-        addPair(left, top + 72, width,
+        addPair(left, top + 144, width,
                 "Boost - (" + oneDecimal(FreecamSettings.boostMultiplier()) + "x)",
                 () -> changeBoost(-0.5),
                 "Boost + (" + oneDecimal(FreecamSettings.boostMultiplier()) + "x)",
@@ -108,25 +147,19 @@ public final class DiagnosticsScreen extends Screen {
             FreecamSettings.toggleSmoothing();
             CDDConfigManager.save();
             rebuildWidgets();
-        }).bounds(left, top + 96, width, 20).build());
+        }).bounds(left, top + 168, width, 20).build());
 
-        addPair(left, top + 120, width,
+        addPair(left, top + 192, width,
                 "Smooth - (" + oneDecimal(FreecamSettings.smoothingStrength()) + ")",
                 () -> changeSmoothingStrength(-1.0),
                 "Smooth + (" + oneDecimal(FreecamSettings.smoothingStrength()) + ")",
                 () -> changeSmoothingStrength(1.0));
 
-        addPair(left, top + 144, width,
+        addPair(left, top + 216, width,
                 "Sens - (" + oneDecimal(FreecamSettings.mouseSensitivity()) + ")",
                 () -> changeSensitivity(-0.1),
                 "Sens + (" + oneDecimal(FreecamSettings.mouseSensitivity()) + ")",
                 () -> changeSensitivity(0.1));
-
-        addRenderableWidget(Button.builder(Component.literal("Reload Config"), button -> {
-            CDDConfigManager.load();
-            status = "Reloaded config from disk";
-            rebuildWidgets();
-        }).bounds(left, top + 168, width, 20).build());
 
         addPresetButton(CDDConfigManager.Preset.DEFAULT, right, top, width);
         addPresetButton(CDDConfigManager.Preset.MINING, right, top + 24, width);
@@ -137,26 +170,37 @@ public final class DiagnosticsScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Save Custom Preset"), button -> {
             CDDConfigManager.saveCustomPreset();
             status = "Saved Custom preset";
+            CDDNotifications.show("Preset", "Saved Custom preset");
             rebuildWidgets();
         }).bounds(right, top + 120, width, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Load Custom Preset"), button -> {
             boolean loaded = CDDConfigManager.loadCustomPreset();
             status = loaded ? "Loaded Custom preset" : "No Custom preset saved";
+            CDDNotifications.show("Preset", loaded ? "Loaded Custom preset" : "No Custom preset saved");
             rebuildWidgets();
         }).bounds(right, top + 144, width, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal("Reload Config"), button -> {
+            CDDConfigManager.load();
+            status = "Reloaded config from disk";
+            CDDNotifications.show("Configuration", "Reloaded from disk");
+            rebuildWidgets();
+        }).bounds(right, top + 168, width, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Reset Defaults"), button -> {
             CDDConfigManager.resetDefaults();
             status = "Reset settings to defaults";
+            CDDNotifications.show("Configuration", "Reset to defaults");
             rebuildWidgets();
-        }).bounds(right, top + 168, width, 20).build());
+        }).bounds(right, top + 192, width, 20).build());
     }
 
     private void addPresetButton(CDDConfigManager.Preset preset, int x, int y, int width) {
         addRenderableWidget(Button.builder(Component.literal("Preset: " + preset.label()), button -> {
             CDDConfigManager.applyPreset(preset);
             status = "Applied " + preset.label() + " preset";
+            CDDNotifications.show("Preset", "Applied " + preset.label());
             rebuildWidgets();
         }).bounds(x, y, width, 20).build());
     }
@@ -221,6 +265,18 @@ public final class DiagnosticsScreen extends Screen {
         return "Freecam: " + (FreecamModule.isActive() ? "ON" : "OFF");
     }
 
+    private static String panicLabel() {
+        return CDDSession.isPanicActive() ? "Panic: ACTIVE" : "Panic: READY";
+    }
+
+    private static String notificationsLabel() {
+        return "Notifications: " + (DiagnosticsSettings.notifications ? "ON" : "OFF");
+    }
+
+    private static String tempModeLabel() {
+        return "Temp Overlay Mode: " + (DiagnosticsSettings.temporaryOverlayMode ? "ON" : "OFF");
+    }
+
     private static String smoothingLabel() {
         return "Freecam Smoothing: " + (FreecamSettings.smoothing() ? "ON" : "OFF");
     }
@@ -237,28 +293,30 @@ public final class DiagnosticsScreen extends Screen {
                 this.font,
                 Component.literal("CD Diagnostics"),
                 this.width / 2 - 38,
-                this.height / 2 - 138,
+                this.height / 2 - 154,
                 0xFFFFFFFF,
                 true
         );
 
         if (section == Section.OVERLAYS) {
             graphics.text(this.font, Component.literal("Players & Storage"),
-                    this.width / 2 - 154, this.height / 2 - 94, 0xFFFFFFFF, true);
+                    this.width / 2 - 154, this.height / 2 - 110, 0xFFFFFFFF, true);
             graphics.text(this.font, Component.literal("Ores"),
-                    this.width / 2 + 4, this.height / 2 - 94, 0xFFFFFFFF, true);
+                    this.width / 2 + 4, this.height / 2 - 110, 0xFFFFFFFF, true);
         } else {
             graphics.text(this.font, Component.literal("Tools & Camera"),
-                    this.width / 2 - 154, this.height / 2 - 94, 0xFFFFFFFF, true);
-            graphics.text(this.font, Component.literal("Presets"),
-                    this.width / 2 + 4, this.height / 2 - 94, 0xFFFFFFFF, true);
+                    this.width / 2 - 154, this.height / 2 - 110, 0xFFFFFFFF, true);
+            graphics.text(this.font, Component.literal("Presets & Config"),
+                    this.width / 2 + 4, this.height / 2 - 110, 0xFFFFFFFF, true);
+            graphics.text(this.font, Component.literal("Temp hold key is configurable in Controls > CD Diagnostics"),
+                    this.width / 2 - 154, this.height / 2 + 132, 0xFFAAAAAA, false);
         }
 
         graphics.text(
                 this.font,
                 Component.literal(status),
                 this.width / 2 - this.font.width(status) / 2,
-                this.height / 2 + 116,
+                this.height / 2 + 148,
                 0xFFAAAAAA,
                 false
         );
