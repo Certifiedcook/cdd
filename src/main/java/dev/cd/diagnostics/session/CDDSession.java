@@ -4,6 +4,7 @@ import dev.cd.diagnostics.DiagnosticsSettings;
 import dev.cd.diagnostics.input.CDDKeyMappings;
 import dev.cd.diagnostics.module.FakePlayerModule;
 import dev.cd.diagnostics.module.FreecamModule;
+import dev.cd.diagnostics.module.WalkingModule;
 import dev.cd.diagnostics.notification.CDDNotifications;
 import net.minecraft.client.Minecraft;
 
@@ -28,7 +29,8 @@ public final class CDDSession {
         if (panicActive) {
             FreecamModule.disable();
             FakePlayerModule.remove();
-            CDDNotifications.show("Panic enabled", "Overlays suspended; freecam stopped");
+            WalkingModule.stop(false);
+            CDDNotifications.show("Panic enabled", "Overlays suspended; movement tools stopped");
         } else {
             CDDNotifications.show("Panic cleared", "Saved overlay settings are active again");
         }
