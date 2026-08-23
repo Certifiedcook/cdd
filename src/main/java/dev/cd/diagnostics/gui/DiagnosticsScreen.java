@@ -25,7 +25,7 @@ public final class DiagnosticsScreen extends Screen {
         addRenderableWidget(toggleButton("Player Overlay", () -> DiagnosticsSettings.playerEsp, v -> DiagnosticsSettings.playerEsp = v, left, top));
         addRenderableWidget(toggleButton("Storage Overlay", () -> DiagnosticsSettings.storageEsp, v -> DiagnosticsSettings.storageEsp = v, left, top + 24));
         addRenderableWidget(toggleButton("Tracers", () -> DiagnosticsSettings.tracers, v -> DiagnosticsSettings.tracers = v, left, top + 48));
-        addRenderableWidget(toggleButton("Depth Override", () -> DiagnosticsSettings.depthOverride, v -> DiagnosticsSettings.depthOverride = v, left, top + 72));
+        addRenderableWidget(toggleButton("Storage Depth Override", () -> DiagnosticsSettings.depthOverride, v -> DiagnosticsSettings.depthOverride = v, left, top + 72));
 
         addRenderableWidget(Button.builder(Component.literal(fakeLabel()), button -> {
             FakePlayerModule.toggle(this.minecraft);
