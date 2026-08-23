@@ -19,41 +19,52 @@ public final class DiagnosticsScreen extends Screen {
 
     @Override
     protected void init() {
-        int left = this.width / 2 - 100;
-        int top = this.height / 2 - 108;
+        int left = this.width / 2 - 154;
+        int right = this.width / 2 + 4;
+        int top = this.height / 2 - 78;
+        int width = 150;
 
-        addRenderableWidget(toggleButton("Player Overlay", () -> DiagnosticsSettings.playerEsp, v -> DiagnosticsSettings.playerEsp = v, left, top));
-        addRenderableWidget(toggleButton("Storage Overlay", () -> DiagnosticsSettings.storageEsp, v -> DiagnosticsSettings.storageEsp = v, left, top + 24));
-        addRenderableWidget(toggleButton("Tracers", () -> DiagnosticsSettings.tracers, v -> DiagnosticsSettings.tracers = v, left, top + 48));
-        addRenderableWidget(toggleButton("Storage Depth Override", () -> DiagnosticsSettings.depthOverride, v -> DiagnosticsSettings.depthOverride = v, left, top + 72));
+        addRenderableWidget(toggleButton("Player Overlay", () -> DiagnosticsSettings.playerEsp, v -> DiagnosticsSettings.playerEsp = v, left, top, width));
+        addRenderableWidget(toggleButton("Player Tracers", () -> DiagnosticsSettings.playerTracers, v -> DiagnosticsSettings.playerTracers = v, left, top + 24, width));
+        addRenderableWidget(toggleButton("Storage Overlay", () -> DiagnosticsSettings.storageEsp, v -> DiagnosticsSettings.storageEsp = v, left, top + 48, width));
+        addRenderableWidget(toggleButton("Storage Through Walls", () -> DiagnosticsSettings.storageDepthOverride, v -> DiagnosticsSettings.storageDepthOverride = v, left, top + 72, width));
+        addRenderableWidget(toggleButton("Ore Overlay", () -> DiagnosticsSettings.oreEsp, v -> DiagnosticsSettings.oreEsp = v, left, top + 96, width));
+        addRenderableWidget(toggleButton("Ore Through Walls", () -> DiagnosticsSettings.oreDepthOverride, v -> DiagnosticsSettings.oreDepthOverride = v, left, top + 120, width));
+
+        addRenderableWidget(Button.builder(Component.literal("Overlay Filters..."), button ->
+                this.minecraft.gui.setScreen(new OverlayFiltersScreen(this)))
+                .bounds(right, top, width, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal(fakeLabel()), button -> {
             FakePlayerModule.toggle(this.minecraft);
             button.setMessage(Component.literal(fakeLabel()));
-        }).bounds(left, top + 104, 200, 20).build());
+        }).bounds(right, top + 24, width, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal(freecamLabel()), button -> {
             FreecamModule.toggle(this.minecraft);
             button.setMessage(Component.literal(freecamLabel()));
-        }).bounds(left, top + 128, 200, 20).build());
+        }).bounds(right, top + 48, width, 20).build());
 
-        addRenderableWidget(Button.builder(Component.literal("Freecam Speed -"), button -> FreecamSettings.setSpeed(FreecamSettings.speed() - 2.0))
-                .bounds(left, top + 152, 98, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Freecam Speed +"), button -> FreecamSettings.setSpeed(FreecamSettings.speed() + 2.0))
-                .bounds(left + 102, top + 152, 98, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Freecam Speed -"), button ->
+                FreecamSettings.setSpeed(FreecamSettings.speed() - 2.0))
+                .bounds(right, top + 72, width, 20).build());
 
-        addRenderableWidget(Button.builder(Component.literal("Smoothing: " + (FreecamSettings.smoothing() ? "ON" : "OFF")), button -> {
+        addRenderableWidget(Button.builder(Component.literal("Freecam Speed +"), button ->
+                FreecamSettings.setSpeed(FreecamSettings.speed() + 2.0))
+                .bounds(right, top + 96, width, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal(smoothingLabel()), button -> {
             FreecamSettings.toggleSmoothing();
-            button.setMessage(Component.literal("Smoothing: " + (FreecamSettings.smoothing() ? "ON" : "OFF")));
-        }).bounds(left, top + 176, 200, 20).build());
+            button.setMessage(Component.literal(smoothingLabel()));
+        }).bounds(right, top + 120, width, 20).build());
     }
 
-    private Button toggleButton(String name, BoolGet getter, BoolSet setter, int x, int y) {
+    private Button toggleButton(String name, BoolGet getter, BoolSet setter, int x, int y, int width) {
         return Button.builder(Component.literal(label(name, getter.get())), button -> {
             boolean next = !getter.get();
             setter.set(next);
             button.setMessage(Component.literal(label(name, next)));
-        }).bounds(x, y, 200, 20).build();
+        }).bounds(x, y, width, 20).build();
     }
 
     private static String label(String name, boolean value) {
@@ -68,10 +79,29 @@ public final class DiagnosticsScreen extends Screen {
         return "Freecam: " + (FreecamModule.isActive() ? "ON" : "OFF");
     }
 
+    private static String smoothingLabel() {
+        return "Smoothing: " + (FreecamSettings.smoothing() ? "ON" : "OFF");
+    }
+
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-        graphics.text(this.font, Component.literal("Speed: " + String.format("%.1f", FreecamSettings.speed()) + " b/s"), this.width / 2 - 100, this.height / 2 + 94, 0xFFFFFFFF, true);
+        graphics.text(
+                this.font,
+                Component.literal("CD Diagnostics"),
+                this.width / 2 - 38,
+                this.height / 2 - 102,
+                0xFFFFFFFF,
+                true
+        );
+        graphics.text(
+                this.font,
+                Component.literal("Freecam speed: " + String.format("%.1f", FreecamSettings.speed()) + " b/s"),
+                this.width / 2 + 4,
+                this.height / 2 + 69,
+                0xFFFFFFFF,
+                true
+        );
     }
 
     @Override
@@ -80,8 +110,12 @@ public final class DiagnosticsScreen extends Screen {
     }
 
     @FunctionalInterface
-    private interface BoolGet { boolean get(); }
+    private interface BoolGet {
+        boolean get();
+    }
 
     @FunctionalInterface
-    private interface BoolSet { void set(boolean value); }
+    private interface BoolSet {
+        void set(boolean value);
+    }
 }
