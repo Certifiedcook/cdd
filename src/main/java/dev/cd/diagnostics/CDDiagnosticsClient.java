@@ -7,8 +7,10 @@ import dev.cd.diagnostics.input.CDDKeyMappings;
 import dev.cd.diagnostics.module.FakePlayerModule;
 import dev.cd.diagnostics.module.FreecamModule;
 import dev.cd.diagnostics.module.OreScanner;
+import dev.cd.diagnostics.module.WalkingModule;
 import dev.cd.diagnostics.notification.CDDNotifications;
 import dev.cd.diagnostics.render.DiagnosticsOverlayRenderer;
+import dev.cd.diagnostics.server.ServerTpsEstimator;
 import dev.cd.diagnostics.session.CDDSession;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -26,9 +28,12 @@ public final class CDDiagnosticsClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             FakePlayerModule.tick(client);
             OreScanner.tick(client);
+            WalkingModule.tick(client);
 
             if (client.level == null) {
                 FreecamModule.disable();
+                WalkingModule.stop(false);
+                ServerTpsEstimator.reset();
                 CDDSession.clearPanic();
             }
 
@@ -47,6 +52,7 @@ public final class CDDiagnosticsClient implements ClientModInitializer {
                     continue;
                 }
 
+                if (!FreecamModule.isActive()) WalkingModule.stop(false);
                 FreecamModule.toggle(client);
                 CDDNotifications.show("Freecam", FreecamModule.isActive() ? "Enabled" : "Disabled");
             }
