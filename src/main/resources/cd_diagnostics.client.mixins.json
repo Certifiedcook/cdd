@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "dev.cd.diagnostics.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "CameraMixin",
+    "MouseHandlerMixin",
+    "KeyboardInputMixin",
+    "ClientInputAccessor",
+    "MinecraftInteractionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
