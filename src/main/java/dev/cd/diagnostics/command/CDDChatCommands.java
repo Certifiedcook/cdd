@@ -1,14 +1,16 @@
 package dev.cd.diagnostics.command;
 
+import dev.cd.diagnostics.DiagnosticsSettings;
 import dev.cd.diagnostics.config.CDDConfigManager;
 import dev.cd.diagnostics.gui.DiagnosticsScreen;
 import dev.cd.diagnostics.input.CDDKeyMappings;
 import dev.cd.diagnostics.module.FakePlayerModule;
 import dev.cd.diagnostics.module.FreecamModule;
 import dev.cd.diagnostics.module.FreecamSettings;
+import dev.cd.diagnostics.notification.CDDNotifications;
+import dev.cd.diagnostics.session.CDDSession;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 
 import java.util.Locale;
 
@@ -29,7 +31,7 @@ public final class CDDChatCommands {
     private static void handle(Minecraft client, String command) {
         String[] args = command.split("\\s+");
         if (args.length == 1 || args[1].equalsIgnoreCase("help")) {
-            message(client, ".cdd gui | .cdd gui bind <a-z> | .cdd freecam | .cdd freecam speed <1-80> | .cdd fakeplayer");
+            notify("Commands", ".cdd gui | freecam | fakeplayer | panic | temp");
             return;
         }
 
@@ -40,9 +42,9 @@ public final class CDDChatCommands {
             }
             if (args.length == 4 && args[2].equalsIgnoreCase("bind")) {
                 if (CDDKeyMappings.bindGuiToLetter(client, args[3])) {
-                    message(client, "GUI bound to " + args[3].toUpperCase(Locale.ROOT));
+                    notify("GUI Binding", "Bound to " + args[3].toUpperCase(Locale.ROOT));
                 } else {
-                    message(client, "Usage: .cdd gui bind <a-z>");
+                    notify("GUI Binding", "Usage: .cdd gui bind <a-z>");
                 }
                 return;
             }
@@ -50,34 +52,52 @@ public final class CDDChatCommands {
 
         if (args[1].equalsIgnoreCase("freecam")) {
             if (args.length == 2) {
+                if (CDDSession.isPanicActive()) {
+                    notify("Panic is active", "Clear Panic before enabling freecam");
+                    return;
+                }
                 FreecamModule.toggle(client);
-                message(client, "Freecam: " + (FreecamModule.isActive() ? "ON" : "OFF"));
+                notify("Freecam", FreecamModule.isActive() ? "Enabled" : "Disabled");
                 return;
             }
             if (args.length == 4 && args[2].equalsIgnoreCase("speed")) {
                 try {
                     FreecamSettings.setSpeed(Double.parseDouble(args[3]));
                     CDDConfigManager.save();
-                    message(client, "Freecam speed: " + FreecamSettings.speed() + " blocks/sec");
+                    notify("Freecam Speed", FreecamSettings.speed() + " blocks/sec");
                 } catch (NumberFormatException exception) {
-                    message(client, "Speed must be a number.");
+                    notify("Freecam Speed", "Speed must be a number");
                 }
                 return;
             }
         }
 
         if (args[1].equalsIgnoreCase("fakeplayer")) {
+            if (CDDSession.isPanicActive()) {
+                notify("Panic is active", "Clear Panic before spawning Fake Player");
+                return;
+            }
             FakePlayerModule.toggle(client);
-            message(client, "Fake player: " + (FakePlayerModule.isSpawned() ? "SPAWNED" : "REMOVED"));
+            notify("Fake Player", FakePlayerModule.isSpawned() ? "Spawned locally" : "Removed");
             return;
         }
 
-        message(client, "Unknown command. Use .cdd help");
+        if (args[1].equalsIgnoreCase("panic")) {
+            CDDSession.togglePanic(client);
+            return;
+        }
+
+        if (args[1].equalsIgnoreCase("temp")) {
+            DiagnosticsSettings.temporaryOverlayMode = !DiagnosticsSettings.temporaryOverlayMode;
+            CDDConfigManager.save();
+            notify("Temporary Overlay Mode", DiagnosticsSettings.temporaryOverlayMode ? "Enabled" : "Disabled");
+            return;
+        }
+
+        notify("Command", "Unknown command. Use .cdd help");
     }
 
-    private static void message(Minecraft client, String text) {
-        if (client.player != null) {
-            client.player.sendSystemMessage(Component.literal("[CD Diagnostics] " + text));
-        }
+    private static void notify(String title, String text) {
+        CDDNotifications.show(title, text);
     }
 }
