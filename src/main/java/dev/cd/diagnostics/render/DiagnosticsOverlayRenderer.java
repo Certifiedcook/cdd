@@ -35,6 +35,7 @@ public final class DiagnosticsOverlayRenderer {
     private static final double MAX_PLAYER_DIST_SQ = 128.0 * 128.0;
     private static final double MAX_STORAGE_DIST_SQ = 96.0 * 96.0;
     private static final int STORAGE_CHUNK_RADIUS = 5;
+    private static final double TRACER_CAMERA_OFFSET = 0.25;
     private static volatile FrameState frame = FrameState.EMPTY;
 
     private DiagnosticsOverlayRenderer() {
@@ -49,6 +50,13 @@ public final class DiagnosticsOverlayRenderer {
     private static void extract(LevelExtractionContext context) {
         ClientLevel level = context.level();
         Vec3 camera = context.camera().position();
+        var forward = context.camera().forwards();
+        Vec3 tracerOrigin = camera.add(
+                forward.x() * TRACER_CAMERA_OFFSET,
+                forward.y() * TRACER_CAMERA_OFFSET,
+                forward.z() * TRACER_CAMERA_OFFSET
+        );
+
         List<Target> players = new ArrayList<>();
         List<Target> storage = new ArrayList<>();
 
@@ -63,9 +71,6 @@ public final class DiagnosticsOverlayRenderer {
                 addPlayerTarget(players, player, camera);
             }
 
-            // Some client entity paths do not include locally-inserted
-            // RemotePlayer instances in ClientLevel.players(). Explicitly add
-            // the CDD dummy once so it always exercises the real overlay path.
             if (diagnosticFake != null && !fakeSeen && diagnosticFake != local && !diagnosticFake.isRemoved()) {
                 addPlayerTarget(players, diagnosticFake, camera);
             }
@@ -83,14 +88,17 @@ public final class DiagnosticsOverlayRenderer {
                         BlockPos pos = blockEntity.getBlockPos();
                         Vec3 center = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                         if (center.distanceToSqr(camera) > MAX_STORAGE_DIST_SQ) continue;
-                        AABB box = new AABB(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0).inflate(0.025);
+                        AABB box = new AABB(
+                                pos.getX(), pos.getY(), pos.getZ(),
+                                pos.getX() + 1.0, pos.getY() + 1.0, pos.getZ() + 1.0
+                        ).inflate(0.025);
                         storage.add(new Target(box, center, STORAGE_COLOR));
                     }
                 }
             }
         }
 
-        frame = new FrameState(List.copyOf(players), List.copyOf(storage), camera);
+        frame = new FrameState(List.copyOf(players), List.copyOf(storage), camera, tracerOrigin);
     }
 
     private static void addPlayerTarget(List<Target> targets, Player player, Vec3 camera) {
@@ -112,9 +120,6 @@ public final class DiagnosticsOverlayRenderer {
         FrameState snapshot = frame;
         if (snapshot.players().isEmpty() && snapshot.storage().isEmpty()) return;
 
-        // Player diagnostics are deliberately x-ray style: the no-depth
-        // pipeline is always used so player boxes remain visible through
-        // terrain. The depth override toggle continues to control storage.
         RenderType playerRenderType = DiagnosticRenderTypes.NO_DEPTH_LINES;
         RenderType storageRenderType = DiagnosticsSettings.depthOverride
                 ? DiagnosticRenderTypes.NO_DEPTH_LINES
@@ -150,7 +155,7 @@ public final class DiagnosticsOverlayRenderer {
             if (!snapshot.players().isEmpty()) {
                 context.submitNodeCollector().submitCustomGeometry(poseStack, playerRenderType, (pose, vertices) -> {
                     for (Target target : snapshot.players()) {
-                        emitLine(pose, vertices, snapshot.camera(), target.center(), target.color());
+                        emitLine(pose, vertices, snapshot.tracerOrigin(), target.center(), target.color());
                     }
                 });
             }
@@ -158,7 +163,7 @@ public final class DiagnosticsOverlayRenderer {
             if (!snapshot.storage().isEmpty()) {
                 context.submitNodeCollector().submitCustomGeometry(poseStack, storageRenderType, (pose, vertices) -> {
                     for (Target target : snapshot.storage()) {
-                        emitLine(pose, vertices, snapshot.camera(), target.center(), target.color());
+                        emitLine(pose, vertices, snapshot.tracerOrigin(), target.center(), target.color());
                     }
                 });
             }
@@ -173,24 +178,33 @@ public final class DiagnosticsOverlayRenderer {
         float dz = (float) (to.z - from.z);
         float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (length < 1.0E-5F) return;
+
         float nx = dx / length;
         float ny = dy / length;
         float nz = dz / length;
 
         vertices.addVertex(pose, (float) from.x, (float) from.y, (float) from.z)
-                .setColor(color).setNormal(pose, nx, ny, nz).setLineWidth(1.5F);
+                .setColor(color)
+                .setNormal(pose, nx, ny, nz)
+                .setLineWidth(2.25F);
         vertices.addVertex(pose, (float) to.x, (float) to.y, (float) to.z)
-                .setColor(color).setNormal(pose, nx, ny, nz).setLineWidth(1.5F);
+                .setColor(color)
+                .setNormal(pose, nx, ny, nz)
+                .setLineWidth(2.25F);
     }
 
     private static Vec3 center(AABB box) {
-        return new Vec3((box.minX + box.maxX) * 0.5, (box.minY + box.maxY) * 0.5, (box.minZ + box.maxZ) * 0.5);
+        return new Vec3(
+                (box.minX + box.maxX) * 0.5,
+                (box.minY + box.maxY) * 0.5,
+                (box.minZ + box.maxZ) * 0.5
+        );
     }
 
     private record Target(AABB box, Vec3 center, int color) {
     }
 
-    private record FrameState(List<Target> players, List<Target> storage, Vec3 camera) {
-        private static final FrameState EMPTY = new FrameState(List.of(), List.of(), Vec3.ZERO);
+    private record FrameState(List<Target> players, List<Target> storage, Vec3 camera, Vec3 tracerOrigin) {
+        private static final FrameState EMPTY = new FrameState(List.of(), List.of(), Vec3.ZERO, Vec3.ZERO);
     }
 }
