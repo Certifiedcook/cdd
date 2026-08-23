@@ -157,7 +157,7 @@ public final class CDDConfigManager {
     }
 
     private static final class ConfigData {
-        int version = 1;
+        int version = 2;
         SettingsSnapshot settings = new SettingsSnapshot();
         SettingsSnapshot customPreset;
     }
@@ -181,6 +181,9 @@ public final class CDDConfigManager {
         public boolean showGold = true;
         public boolean showLapis = true;
         public boolean showRedstone = true;
+
+        public boolean notifications = true;
+        public boolean temporaryOverlayMode = false;
 
         public double freecamSpeed = 12.0;
         public double freecamBoostMultiplier = 3.0;
@@ -213,6 +216,9 @@ public final class CDDConfigManager {
             snapshot.showLapis = DiagnosticsSettings.showLapis;
             snapshot.showRedstone = DiagnosticsSettings.showRedstone;
 
+            snapshot.notifications = DiagnosticsSettings.notifications;
+            snapshot.temporaryOverlayMode = DiagnosticsSettings.temporaryOverlayMode;
+
             snapshot.freecamSpeed = FreecamSettings.speed();
             snapshot.freecamBoostMultiplier = FreecamSettings.boostMultiplier();
             snapshot.freecamSmoothing = FreecamSettings.smoothing();
@@ -241,6 +247,9 @@ public final class CDDConfigManager {
             DiagnosticsSettings.showGold = showGold;
             DiagnosticsSettings.showLapis = showLapis;
             DiagnosticsSettings.showRedstone = showRedstone;
+
+            DiagnosticsSettings.notifications = notifications;
+            DiagnosticsSettings.temporaryOverlayMode = temporaryOverlayMode;
 
             FreecamSettings.setSpeed(freecamSpeed);
             FreecamSettings.setBoostMultiplier(freecamBoostMultiplier);
