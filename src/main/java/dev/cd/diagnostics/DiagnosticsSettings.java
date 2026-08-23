@@ -20,6 +20,9 @@ public final class DiagnosticsSettings {
     public static boolean showLapis = true;
     public static boolean showRedstone = true;
 
+    public static boolean notifications = true;
+    public static boolean temporaryOverlayMode = false;
+
     private DiagnosticsSettings() {
     }
 
