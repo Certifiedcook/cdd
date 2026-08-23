@@ -27,7 +27,17 @@ public abstract class KeyboardInputMixin {
 
         boolean forward = WalkingModule.shouldMoveForward();
         boolean jump = WalkingModule.shouldJump();
-        input.keyPresses = new Input(forward, false, false, false, jump, false, false);
+        boolean sneak = WalkingModule.shouldSneak();
+
+        input.keyPresses = new Input(
+                forward,
+                false,
+                false,
+                false,
+                jump,
+                sneak,
+                false
+        );
         ((ClientInputAccessor) input).cdd$setMoveVector(forward ? new Vec2(0.0F, 1.0F) : Vec2.ZERO);
     }
 }
