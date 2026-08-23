@@ -50,12 +50,17 @@ public final class DiagnosticsOverlayRenderer {
     private static void extract(LevelExtractionContext context) {
         ClientLevel level = context.level();
         Vec3 camera = context.camera().position();
-        var forward = context.camera().forwards();
-        Vec3 tracerOrigin = camera.add(
-                forward.x() * TRACER_CAMERA_OFFSET,
-                forward.y() * TRACER_CAMERA_OFFSET,
-                forward.z() * TRACER_CAMERA_OFFSET
+
+        float yaw = context.camera().yRot();
+        float pitch = context.camera().xRot();
+        double yawRadians = Math.toRadians(yaw);
+        double pitchRadians = Math.toRadians(pitch);
+        Vec3 forward = new Vec3(
+                -Math.sin(yawRadians) * Math.cos(pitchRadians),
+                -Math.sin(pitchRadians),
+                Math.cos(yawRadians) * Math.cos(pitchRadians)
         );
+        Vec3 tracerOrigin = camera.add(forward.scale(TRACER_CAMERA_OFFSET));
 
         List<Target> players = new ArrayList<>();
         List<Target> storage = new ArrayList<>();
