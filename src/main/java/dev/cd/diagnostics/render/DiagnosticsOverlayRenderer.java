@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.cd.diagnostics.DiagnosticsSettings;
 import dev.cd.diagnostics.module.FakePlayerModule;
 import dev.cd.diagnostics.module.OreScanner;
+import dev.cd.diagnostics.session.CDDSession;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -50,6 +51,11 @@ public final class DiagnosticsOverlayRenderer {
     }
 
     private static void extract(LevelExtractionContext context) {
+        if (!CDDSession.overlaysVisible()) {
+            frame = FrameState.EMPTY;
+            return;
+        }
+
         ClientLevel level = context.level();
         Vec3 camera = context.camera().position();
 
@@ -156,6 +162,8 @@ public final class DiagnosticsOverlayRenderer {
     }
 
     private static void submit(LevelRenderContext context) {
+        if (!CDDSession.overlaysVisible()) return;
+
         FrameState snapshot = frame;
         if (snapshot.players().isEmpty() && snapshot.storage().isEmpty() && snapshot.ores().isEmpty()) return;
 
@@ -189,8 +197,6 @@ public final class DiagnosticsOverlayRenderer {
             }
         }
 
-        // Tracers intentionally target players only. Storage and ore tracers
-        // are not submitted at all.
         if (DiagnosticsSettings.playerTracers && !snapshot.players().isEmpty()) {
             context.submitNodeCollector().submitCustomGeometry(
                     poseStack,
