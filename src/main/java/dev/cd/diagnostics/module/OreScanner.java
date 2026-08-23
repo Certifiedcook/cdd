@@ -1,6 +1,7 @@
 package dev.cd.diagnostics.module;
 
 import dev.cd.diagnostics.DiagnosticsSettings;
+import dev.cd.diagnostics.session.CDDSession;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
@@ -37,6 +38,8 @@ public final class OreScanner {
     }
 
     public static void tick(Minecraft client) {
+        if (CDDSession.isPanicActive()) return;
+
         if (!DiagnosticsSettings.oreEsp || !DiagnosticsSettings.anyOreEnabled() || client.level == null || client.player == null) {
             clear();
             return;
