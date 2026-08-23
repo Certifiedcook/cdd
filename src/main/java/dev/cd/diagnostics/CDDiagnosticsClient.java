@@ -1,6 +1,7 @@
 package dev.cd.diagnostics;
 
 import dev.cd.diagnostics.command.CDDChatCommands;
+import dev.cd.diagnostics.config.CDDConfigManager;
 import dev.cd.diagnostics.gui.DiagnosticsScreen;
 import dev.cd.diagnostics.input.CDDKeyMappings;
 import dev.cd.diagnostics.module.FakePlayerModule;
@@ -15,6 +16,7 @@ public final class CDDiagnosticsClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        CDDConfigManager.load();
         CDDKeyMappings.bootstrap();
         DiagnosticsOverlayRenderer.initialize();
         CDDChatCommands.register();
